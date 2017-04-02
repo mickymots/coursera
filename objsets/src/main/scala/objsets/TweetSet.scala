@@ -104,11 +104,21 @@ abstract class TweetSet {
    * This method takes a function and applies it to every element in the set.
    */
   def foreach(f: Tweet => Unit): Unit
+
+  def isEmpty() : Boolean
 }
 
 class Empty extends TweetSet {
-    def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet = ???
-  
+    def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet = this
+
+    override def filter(p: Tweet => Boolean): TweetSet = {
+      filterAcc(p, new Empty)
+    }
+
+  override def mostRetweeted: Tweet = new Tweet("", "", 0)
+
+  override def union(that: TweetSet): TweetSet = that
+
   /**
    * The following methods are already implemented
    */
@@ -120,13 +130,58 @@ class Empty extends TweetSet {
   def remove(tweet: Tweet): TweetSet = this
 
   def foreach(f: Tweet => Unit): Unit = ()
+
+  def isEmpty = true
+
+  override def descendingByRetweet: TweetList = Nil
 }
 
 class NonEmpty(elem: Tweet, left: TweetSet, right: TweetSet) extends TweetSet {
 
-    def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet = ???
-  
-    
+  def isEmpty = false
+
+  override def mostRetweeted: Tweet = {
+    if(elem.retweets > left.mostRetweeted.retweets) {
+      if (elem.retweets > right.mostRetweeted.retweets)
+        elem
+      else right.mostRetweeted
+    }
+    else{
+      if(left.mostRetweeted.retweets > right.mostRetweeted.retweets)
+        left.mostRetweeted
+      else
+        right.mostRetweeted
+    }
+  }
+
+
+  override def descendingByRetweet: TweetList = {
+    iter(this, Nil)
+  }
+
+  def iter(xs: TweetSet, dbr: TweetList): TweetList ={
+    if(xs.isEmpty)
+    dbr
+    else {
+      if(dbr.isEmpty)
+          iter(xs.remove(xs.mostRetweeted), new Cons(xs.mostRetweeted, dbr))
+      else
+        iter(xs.remove(xs.mostRetweeted), new Cons(dbr.head, new Cons(xs.mostRetweeted, dbr.tail)))
+    }
+  }
+
+  override def union(that: TweetSet): TweetSet = left union right union (that incl elem)
+
+    def filterAcc(p: Tweet => Boolean, acc: TweetSet): TweetSet = {
+          if(p(elem))
+                acc.incl(elem)
+          else acc
+    }
+
+    override def filter(p: Tweet => Boolean): TweetSet = {
+      filterAcc(p,new Empty) union left.filter(p) union right.filter(p)
+
+    }
   /**
    * The following methods are already implemented
    */
@@ -180,14 +235,22 @@ object GoogleVsApple {
   val google = List("android", "Android", "galaxy", "Galaxy", "nexus", "Nexus")
   val apple = List("ios", "iOS", "iphone", "iPhone", "ipad", "iPad")
 
-    lazy val googleTweets: TweetSet = ???
-  lazy val appleTweets: TweetSet = ???
+  lazy val googleTweets: TweetSet = TweetReader.allTweets.filter(tweet =>
+
+    google.exists(str => tweet.text.contains(str))
+
+  )
+
+
+  lazy val appleTweets: TweetSet = TweetReader.allTweets.filter(tweet =>
+      apple.exists(str => tweet.text.contains(str))
+  )
   
   /**
    * A list of all tweets mentioning a keyword from either apple or google,
    * sorted by the number of retweets.
    */
-     lazy val trending: TweetList = ???
+     lazy val trending: TweetList = (googleTweets union appleTweets).descendingByRetweet
   }
 
 object Main extends App {
